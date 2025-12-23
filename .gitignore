@@ -1,0 +1,16 @@
+# WordPress
+.DS_Store
+*.log
+*.zip
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
