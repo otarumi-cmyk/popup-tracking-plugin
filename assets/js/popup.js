@@ -472,12 +472,30 @@
     }
     
     function initFloating() {
-        if (!floatingEnabled) return;
-        if (!config.floatingImageUrl) { log('No floating image configured'); return; }
+        debugLog('🚀 initFloating called (右下フローティングポップアップ)', {
+            enabled: floatingEnabled,
+            hasImage: !!config.floatingImageUrl,
+            postId: config.postId,
+            windowWidth: window.innerWidth
+        });
+        
+        if (!floatingEnabled) {
+            debugLog('❌ Floating popup not enabled');
+            return;
+        }
+        if (!config.floatingImageUrl) { 
+            debugLog('❌ No floating image configured');
+            log('No floating image configured'); 
+            return; 
+        }
         
         // PCのみ表示（モバイルでは表示しない）
         var isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isMobile) {
+            debugLog('📱 Floating popup: Mobile device detected, not showing', {
+                windowWidth: window.innerWidth,
+                userAgent: navigator.userAgent
+            });
             log('Floating banner: Mobile device detected, not showing');
             return;
         }
@@ -500,12 +518,17 @@
     
     function showFloatingBanner() {
         if (floatingBannerShown) {
+            debugLog('⚠️ showFloatingBanner called but already shown', {
+                floatingBannerShown: floatingBannerShown,
+                impressionRecorded: floatingBannerLogged.impression || false
+            });
             log('Floating banner already shown in this page load');
             return;
         }
         
         var banner = document.getElementById('popup-floating-banner-bottom');
         if (!banner) { 
+            debugLog('❌ Floating banner bottom not found in DOM');
             log('Floating banner bottom not found in DOM'); 
             return; 
         }
@@ -514,6 +537,7 @@
         var pcImg = banner.querySelector('.popup-floating-banner-image-pc');
         var spImg = banner.querySelector('.popup-floating-banner-image-sp');
         if (!pcImg && !spImg) {
+            debugLog('❌ No floating banner images found in DOM');
             log('No floating banner images found');
             return;
         }
@@ -527,6 +551,10 @@
         }
         
         if (!imgLoaded) {
+            debugLog('⏳ Floating banner images not loaded yet, waiting...', {
+                pcImg: pcImg ? { complete: pcImg.complete, naturalWidth: pcImg.naturalWidth } : null,
+                spImg: spImg ? { complete: spImg.complete, naturalWidth: spImg.naturalWidth } : null
+            });
             log('Floating banner images not loaded yet, waiting...');
             // 画像の読み込みを待つ
             var imgToWait = pcImg || spImg;
@@ -536,6 +564,18 @@
                         floatingBannerShown = true;
                         banner.style.display = 'block';
                         log('Floating banner bottom displayed after image load');
+                        
+                        debugLog('📊 Recording FLOATING BANNER (bottom) impression (after image load)', {
+                            ctaId: floatingBannerMeta.ctaId,
+                            variant: floatingBannerMeta.variant,
+                            postId: config.postId,
+                            sessionId: getSessionId(),
+                            beforeState: {
+                                impression: floatingBannerLogged.impression || false,
+                                click: floatingBannerLogged.click || false
+                            }
+                        });
+                        
                         sendLog('impression', floatingBannerMeta, floatingBannerLogged);
                     }
                 });
@@ -546,6 +586,18 @@
                             floatingBannerShown = true;
                             banner.style.display = 'block';
                             log('Floating banner bottom displayed (image already loaded)');
+                            
+                            debugLog('📊 Recording FLOATING BANNER (bottom) impression (image already loaded)', {
+                                ctaId: floatingBannerMeta.ctaId,
+                                variant: floatingBannerMeta.variant,
+                                postId: config.postId,
+                                sessionId: getSessionId(),
+                                beforeState: {
+                                    impression: floatingBannerLogged.impression || false,
+                                    click: floatingBannerLogged.click || false
+                                }
+                            });
+                            
                             sendLog('impression', floatingBannerMeta, floatingBannerLogged);
                         }
                     }, 100);
@@ -651,7 +703,15 @@
     }
     
     function initFloatingBanner() {
+        debugLog('🚀 initFloatingBanner called', {
+            enabled: floatingBannerEnabled,
+            hasPcImage: !!config.floatingBannerImageUrlPc,
+            hasSpImage: !!config.floatingBannerImageUrlSp,
+            postId: config.postId
+        });
+        
         if (!floatingBannerEnabled) {
+            debugLog('❌ Floating banner not enabled');
             log('Floating banner not enabled');
             return;
         }
@@ -659,6 +719,7 @@
         // バナーがDOMに存在するか確認
         var banner = document.getElementById('popup-floating-banner-bottom');
         if (!banner) {
+            debugLog('❌ Floating banner element not found in DOM');
             log('Floating banner element not found in DOM');
             return;
         }
@@ -666,16 +727,20 @@
         var hasPc = !!config.floatingBannerImageUrlPc;
         var hasSp = !!config.floatingBannerImageUrlSp;
         if (!hasPc && !hasSp) { 
+            debugLog('❌ No floating banner image configured');
             log('No floating banner image configured'); 
             return; 
         }
         
         // セッションIDを確実に設定（フローティングバナー用）
-        if (!document.cookie.match(/popup_tracking_session=/)) {
-            var sessionId = Math.random().toString(36).substr(2, 16);
+        var sessionId = getSessionId();
+        if (sessionId === 'not-set') {
+            sessionId = Math.random().toString(36).substr(2, 16);
             document.cookie = 'popup_tracking_session=' + sessionId + '; path=/; max-age=86400'; // 24時間有効
+            debugLog('✅ Floating banner session ID created', { sessionId: sessionId });
             log('Floating banner session ID created: ' + sessionId);
         } else {
+            debugLog('✅ Floating banner using existing session ID', { sessionId: sessionId });
             log('Floating banner using existing session ID');
         }
         
