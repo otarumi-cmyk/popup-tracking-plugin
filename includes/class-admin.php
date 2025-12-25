@@ -1009,10 +1009,7 @@ class Popup_Tracking_Admin {
             <h1>🎯 表示条件設定</h1>
             
             <form method="post" action="options.php">
-                <?php 
-                settings_fields('popup_tracking_targeting_group'); 
-                settings_fields('popup_tracking_settings_group');
-                ?>
+                <?php settings_fields('popup_tracking_targeting_group'); ?>
                 
                 <div class="targeting-section">
                     <h2>📝 記事の表示設定</h2>
