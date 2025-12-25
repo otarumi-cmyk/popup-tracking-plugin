@@ -3,7 +3,7 @@
  * Plugin Name: Popup Tracking
  * Plugin URI: https://migi-nanameue.co.jp
  * Description: 記事ごとのポップアップ表示・クリック率を計測（タグ別CTA出し分け・A/Bテスト10パターン対応）
- * Version: 3.3.0
+ * Version: 3.3.1
  * Author: migi-nanameue
  * Text Domain: popup-tracking
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('POPUP_TRACKING_VERSION', '3.3.0');
+define('POPUP_TRACKING_VERSION', '3.3.1');
 define('POPUP_TRACKING_PATH', plugin_dir_path(__FILE__));
 define('POPUP_TRACKING_URL', plugin_dir_url(__FILE__));
 

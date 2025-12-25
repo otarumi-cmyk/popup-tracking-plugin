@@ -24,6 +24,24 @@
         if (debug) console.log('[PopupTracking]', msg);
     }
     
+    // デバッグログ（常に出力）
+    function debugLog(msg, data) {
+        var timestamp = new Date().toLocaleTimeString();
+        console.log('[PopupTracking Debug ' + timestamp + ']', msg, data || '');
+    }
+    
+    // セッションIDを取得
+    function getSessionId() {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.indexOf('popup_tracking_session=') === 0) {
+                return cookie.substring('popup_tracking_session='.length);
+            }
+        }
+        return 'not-set';
+    }
+    
     function getStorageKey(prefix) {
         var base = prefix === 'floating' ? 'popup_floating' : 'popup';
         var suffix = config.frequency === 'session' ? 'session' : new Date().toISOString().slice(0, 10);
@@ -46,19 +64,48 @@
     }
     
     function sendLog(eventType, meta, state) {
+        var ctaId = meta.ctaId || 'default';
+        var variant = meta.variant || 'A';
+        var sessionId = getSessionId();
+        
+        // デバッグ: イベント送信前の状態確認
+        debugLog('=== sendLog Called ===', {
+            eventType: eventType,
+            ctaId: ctaId,
+            variant: variant,
+            postId: config.postId,
+            sessionId: sessionId,
+            currentState: {
+                impression: state.impression || false,
+                click: state.click || false,
+                close: state.close || false
+            },
+            popupShown: popupShown,
+            floatingShown: floatingShown
+        });
+        
         // クリックイベントの場合は、表示が記録されていることを確認
         if (eventType === 'click' && !state.impression) {
+            debugLog('❌ Click event ignored: impression not recorded yet', {
+                eventType: eventType,
+                impressionRecorded: state.impression,
+                ctaId: ctaId
+            });
             log('Click event ignored: impression not recorded yet');
             return;
         }
         
         if (state[eventType]) {
+            debugLog('❌ Event already logged (duplicate prevented)', {
+                eventType: eventType,
+                ctaId: ctaId,
+                variant: variant
+            });
             log('Event already logged: ' + eventType);
             return;
         }
+        
         state[eventType] = true;
-        var ctaId = meta.ctaId || 'default';
-        var variant = meta.variant || 'A';
         log('Sending log: ' + eventType + ' (cta: ' + ctaId + ', variant: ' + variant + ')');
         
         var data = new FormData();
@@ -69,16 +116,62 @@
         data.append('variant', variant);
         data.append('event_type', eventType);
         
+        // デバッグ: 送信データの詳細
+        var sendData = {
+            action: 'popup_tracking_log',
+            post_id: config.postId,
+            cta_id: ctaId,
+            variant: variant,
+            event_type: eventType,
+            session_id: sessionId,
+            timestamp: new Date().toISOString()
+        };
+        debugLog('📤 Sending to server', sendData);
+        
+        var requestStartTime = Date.now();
+        
         fetch(config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' })
-            .then(function(res) { return res.json(); })
+            .then(function(res) { 
+                var requestTime = Date.now() - requestStartTime;
+                debugLog('📥 Response received (' + requestTime + 'ms)', {
+                    status: res.status,
+                    statusText: res.statusText
+                });
+                return res.json(); 
+            })
             .then(function(json) { 
+                debugLog('✅ Server response', {
+                    success: json.success || false,
+                    data: json.data || '',
+                    message: json.message || '',
+                    fullResponse: json
+                });
+                
                 log('Log response: ' + JSON.stringify(json));
+                
                 if (!json.success && json.data && json.data.indexOf('Duplicate') !== -1) {
+                    debugLog('⚠️ Duplicate log prevented by server', {
+                        eventType: eventType,
+                        ctaId: ctaId,
+                        response: json.data
+                    });
                     log('Duplicate log prevented by server');
                     state[eventType] = false; // リセットして再試行可能に
+                } else if (json.success) {
+                    debugLog('✅ Event successfully recorded', {
+                        eventType: eventType,
+                        ctaId: ctaId,
+                        variant: variant
+                    });
                 }
             })
             .catch(function(err) { 
+                debugLog('❌ Request error', {
+                    error: err.message || err,
+                    eventType: eventType,
+                    ctaId: ctaId,
+                    stack: err.stack
+                });
                 log('Log error: ' + err);
                 state[eventType] = false; // エラー時はリセット
             });
@@ -88,11 +181,21 @@
     // ポップアップ本体
     // ============================================
     function showPopup() {
-        if (popupShown) return;
+        if (popupShown) {
+            debugLog('⚠️ showPopup called but popup already shown', {
+                popupShown: popupShown,
+                impressionRecorded: popupLogged.impression
+            });
+            return;
+        }
         popupShown = true;
         
         var modal = document.getElementById('popup-tracking-modal');
-        if (!modal) { log('Modal not found'); return; }
+        if (!modal) { 
+            debugLog('❌ Modal not found in DOM');
+            log('Modal not found'); 
+            return; 
+        }
         
         var content = modal.querySelector('.popup-tracking-content');
         if (content && config.popupWidth) {
@@ -103,6 +206,18 @@
         document.body.style.overflow = 'hidden';
         markAsShown('popup');
         log('Popup displayed (cta: ' + popupMeta.ctaId + ', variant: ' + popupMeta.variant + ')');
+        
+        debugLog('📊 Recording POPUP impression', {
+            ctaId: popupMeta.ctaId,
+            variant: popupMeta.variant,
+            postId: config.postId,
+            sessionId: getSessionId(),
+            beforeState: {
+                impression: popupLogged.impression || false,
+                click: popupLogged.click || false
+            }
+        });
+        
         sendLog('impression', popupMeta, popupLogged);
     }
     
@@ -141,6 +256,10 @@
             var clickHandled = false;
             var handleClick = function(e) {
                 if (clickHandled) {
+                    debugLog('⚠️ Click already handled (duplicate prevented)', {
+                        ctaId: popupMeta.ctaId,
+                        eventType: e.type
+                    });
                     e.preventDefault();
                     e.stopPropagation();
                     return;
@@ -148,6 +267,20 @@
                 clickHandled = true;
                 e.preventDefault();
                 e.stopPropagation();
+                
+                debugLog('🖱️ Recording POPUP click', {
+                    ctaId: popupMeta.ctaId,
+                    variant: popupMeta.variant,
+                    postId: config.postId,
+                    sessionId: getSessionId(),
+                    eventType: e.type,
+                    impressionRecorded: popupLogged.impression || false,
+                    beforeState: {
+                        impression: popupLogged.impression || false,
+                        click: popupLogged.click || false
+                    }
+                });
+                
                 sendLog('click', popupMeta, popupLogged);
                 var href = link.getAttribute('href');
                 setTimeout(function() {
@@ -230,12 +363,17 @@
     // ============================================
     function showFloating() {
         if (floatingShown) {
+            debugLog('⚠️ showFloating called but floating already shown', {
+                floatingShown: floatingShown,
+                impressionRecorded: floatingLogged.impression
+            });
             log('Floating banner already shown');
             return;
         }
         
         var banner = document.getElementById('popup-floating-banner');
         if (!banner) { 
+            debugLog('❌ Floating banner not found in DOM');
             log('Floating banner not found'); 
             return; 
         }
@@ -243,6 +381,10 @@
         // PCのみ表示（再確認）
         var isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         if (isMobile) {
+            debugLog('📱 Floating banner: Mobile device detected, not showing', {
+                windowWidth: window.innerWidth,
+                userAgent: navigator.userAgent
+            });
             log('Floating banner: Mobile device detected, not showing');
             return;
         }
@@ -250,6 +392,18 @@
         floatingShown = true;
         banner.style.display = 'block';
         log('Floating banner displayed (PC only, always shown)');
+        
+        debugLog('📊 Recording FLOATING POPUP impression', {
+            ctaId: floatingMeta.ctaId,
+            variant: floatingMeta.variant,
+            postId: config.postId,
+            sessionId: getSessionId(),
+            beforeState: {
+                impression: floatingLogged.impression || false,
+                click: floatingLogged.click || false
+            }
+        });
+        
         // 頻度制限なしなのでmarkAsShownは呼ばない
         sendLog('impression', floatingMeta, floatingLogged);
     }
@@ -268,6 +422,10 @@
             var clickHandled = false;
             var handleClick = function(e) {
                 if (clickHandled) {
+                    debugLog('⚠️ Floating click already handled (duplicate prevented)', {
+                        ctaId: floatingMeta.ctaId,
+                        eventType: e.type
+                    });
                     e.preventDefault();
                     e.stopPropagation();
                     return;
@@ -275,6 +433,20 @@
                 clickHandled = true;
                 e.preventDefault();
                 e.stopPropagation();
+                
+                debugLog('🖱️ Recording FLOATING POPUP click', {
+                    ctaId: floatingMeta.ctaId,
+                    variant: floatingMeta.variant,
+                    postId: config.postId,
+                    sessionId: getSessionId(),
+                    eventType: e.type,
+                    impressionRecorded: floatingLogged.impression || false,
+                    beforeState: {
+                        impression: floatingLogged.impression || false,
+                        click: floatingLogged.click || false
+                    }
+                });
+                
                 sendLog('click', floatingMeta, floatingLogged);
                 var href = link.getAttribute('href');
                 setTimeout(function() {
@@ -387,6 +559,17 @@
         banner.style.display = 'block';
         log('Floating banner bottom displayed (always shown)');
         
+        debugLog('📊 Recording FLOATING BANNER (bottom) impression', {
+            ctaId: floatingBannerMeta.ctaId,
+            variant: floatingBannerMeta.variant,
+            postId: config.postId,
+            sessionId: getSessionId(),
+            beforeState: {
+                impression: floatingBannerLogged.impression || false,
+                click: floatingBannerLogged.click || false
+            }
+        });
+        
         // バナーが実際に表示された場合のみログを送信（初回のみ）
         sendLog('impression', floatingBannerMeta, floatingBannerLogged);
     }
@@ -414,12 +597,31 @@
                     return;
                 }
                 if (!floatingBannerShown) {
+                    debugLog('❌ Floating banner not shown, ignoring click', {
+                        ctaId: floatingBannerMeta.ctaId,
+                        floatingBannerShown: floatingBannerShown,
+                        impressionRecorded: floatingBannerLogged.impression || false
+                    });
                     log('Floating banner not shown, ignoring click');
                     return;
                 }
                 clickHandled = true;
                 e.preventDefault();
                 e.stopPropagation();
+                
+                debugLog('🖱️ Recording FLOATING BANNER (bottom) click', {
+                    ctaId: floatingBannerMeta.ctaId,
+                    variant: floatingBannerMeta.variant,
+                    postId: config.postId,
+                    sessionId: getSessionId(),
+                    eventType: e.type,
+                    impressionRecorded: floatingBannerLogged.impression || false,
+                    beforeState: {
+                        impression: floatingBannerLogged.impression || false,
+                        click: floatingBannerLogged.click || false
+                    }
+                });
+                
                 sendLog('click', floatingBannerMeta, floatingBannerLogged);
                 var href = link.getAttribute('href');
                 if (href) {
