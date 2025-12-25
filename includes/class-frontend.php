@@ -501,7 +501,6 @@ class Popup_Tracking_Frontend {
             $position = $settings['floating_position'] ?? 'br';
             ?>
             <div id="popup-floating-banner" class="popup-floating-banner position-<?php echo esc_attr($position); ?>" style="display:none;">
-                <button type="button" class="popup-floating-close" aria-label="閉じる">&times;</button>
                 <a href="<?php echo esc_url($f_link); ?>" id="popup-floating-link" class="popup-floating-link" target="_blank" rel="noopener">
                     <img src="<?php echo esc_url($f_image); ?>" alt="フローティングバナー" class="popup-floating-image">
                 </a>

@@ -262,16 +262,7 @@
     function setupFloatingListeners() {
         var banner = document.getElementById('popup-floating-banner');
         if (!banner) return;
-        var closeBtn = banner.querySelector('.popup-floating-close');
         var link = document.getElementById('popup-floating-link');
-        
-        if (closeBtn) {
-            closeBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                hideFloating();
-                sendLog('close', floatingMeta, floatingLogged);
-            });
-        }
         
         if (link) {
             var clickHandled = false;
