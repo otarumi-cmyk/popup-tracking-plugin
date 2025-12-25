@@ -241,6 +241,19 @@
             closeBtn.addEventListener('click', function(e) {
                 e.preventDefault();
                 hidePopup();
+                
+                debugLog('❌ Recording POPUP close (X button)', {
+                    ctaId: popupMeta.ctaId,
+                    variant: popupMeta.variant,
+                    postId: config.postId,
+                    sessionId: getSessionId(),
+                    beforeState: {
+                        impression: popupLogged.impression || false,
+                        click: popupLogged.click || false,
+                        close: popupLogged.close || false
+                    }
+                });
+                
                 sendLog('close', popupMeta, popupLogged);
             });
         }
@@ -248,6 +261,19 @@
         if (overlay) {
             overlay.addEventListener('click', function() {
                 hidePopup();
+                
+                debugLog('❌ Recording POPUP close (overlay click)', {
+                    ctaId: popupMeta.ctaId,
+                    variant: popupMeta.variant,
+                    postId: config.postId,
+                    sessionId: getSessionId(),
+                    beforeState: {
+                        impression: popupLogged.impression || false,
+                        click: popupLogged.click || false,
+                        close: popupLogged.close || false
+                    }
+                });
+                
                 sendLog('close', popupMeta, popupLogged);
             });
         }
@@ -313,6 +339,19 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && modal.style.display !== 'none') {
                 hidePopup();
+                
+                debugLog('❌ Recording POPUP close (ESC key)', {
+                    ctaId: popupMeta.ctaId,
+                    variant: popupMeta.variant,
+                    postId: config.postId,
+                    sessionId: getSessionId(),
+                    beforeState: {
+                        impression: popupLogged.impression || false,
+                        click: popupLogged.click || false,
+                        close: popupLogged.close || false
+                    }
+                });
+                
                 sendLog('close', popupMeta, popupLogged);
             }
         });
