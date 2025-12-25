@@ -124,12 +124,28 @@ class Popup_Tracking_Admin {
         $sanitized['frequency'] = in_array($input['frequency'] ?? '', array('session', 'daily')) 
             ? $input['frequency'] : 'daily';
 
-        // フローティングバナー
+        // フローティングポップアップ（右下）
         $sanitized['floating_enabled'] = !empty($input['floating_enabled']);
-        $sanitized['floating_image_url'] = esc_url_raw($input['floating_image_url'] ?? '');
-        $sanitized['floating_link_url'] = esc_url_raw($input['floating_link_url'] ?? '');
         $sanitized['floating_position'] = in_array($input['floating_position'] ?? '', array('br', 'bl')) 
             ? $input['floating_position'] : 'br';
+        
+        // フローティングポップアップA/Bテスト設定
+        $sanitized['floating_abtest_enabled'] = !empty($input['floating_abtest_enabled']);
+        $sanitized['floating_active_variants'] = intval($input['floating_active_variants'] ?? 2);
+        if ($sanitized['floating_active_variants'] < 2) $sanitized['floating_active_variants'] = 2;
+        if ($sanitized['floating_active_variants'] > 10) $sanitized['floating_active_variants'] = 10;
+        
+        // 各バリアントの設定
+        foreach ($this->variants as $v) {
+            $key = strtolower($v);
+            $sanitized['floating_image_url_' . $key] = esc_url_raw($input['floating_image_url_' . $key] ?? '');
+            $sanitized['floating_link_url_' . $key] = esc_url_raw($input['floating_link_url_' . $key] ?? '');
+            $sanitized['floating_weight_' . $key] = intval($input['floating_weight_' . $key] ?? ($v === 'A' ? 100 : 0));
+        }
+        
+        // 後方互換性のため、バリアントAの設定を旧設定にもコピー
+        $sanitized['floating_image_url'] = $sanitized['floating_image_url_a'];
+        $sanitized['floating_link_url'] = $sanitized['floating_link_url_a'];
         
         // フローティングポップアップ専用のカテゴリー設定
         $sanitized['floating_category_mode'] = in_array($input['floating_category_mode'] ?? '', array('all', 'include', 'exclude')) 
@@ -809,8 +825,8 @@ class Popup_Tracking_Admin {
                 </div>
                 
                 <div class="pattern-section">
-                    <h2>📌 フローティングバナー</h2>
-                    <p class="description">画面端に表示する小型バナー。クリック/表示/閉じるを計測します。</p>
+                    <h2>📌 フローティングポップアップ（右下）</h2>
+                    <p class="description">画面右下に表示する小型バナー。PCのみ表示されます。A/Bテストも可能です。</p>
                     <table class="form-table">
                         <tr>
                             <th>有効/無効</th>
@@ -818,40 +834,89 @@ class Popup_Tracking_Admin {
                                 <label class="switch">
                                     <input type="checkbox" name="popup_tracking_settings[floating_enabled]" value="1" <?php checked($settings['floating_enabled']); ?>>
                                     <span class="slider"></span>
-                                </label> フローティングバナーを表示する
+                                </label> フローティングポップアップを表示する
                             </td>
-                        </tr>
-                        <tr>
-                            <th>画像</th>
-                            <td>
-                                <div class="image-upload-field">
-                                    <input type="hidden" name="popup_tracking_settings[floating_image_url]" id="floating_image_url" value="<?php echo esc_url($settings['floating_image_url']); ?>">
-                                    <div id="floating-image-preview" class="image-preview-large">
-                                        <?php if ($settings['floating_image_url']) : ?>
-                                            <img src="<?php echo esc_url($settings['floating_image_url']); ?>" alt="">
-                                        <?php else : ?>
-                                            <span class="placeholder">画像を選択</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="image-buttons">
-                                        <button type="button" class="button upload-image-btn" data-target="floating">選択</button>
-                                        <button type="button" class="button remove-image-btn" data-target="floating" style="<?php echo $settings['floating_image_url'] ? '' : 'display:none;'; ?>">削除</button>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>リンク先URL</th>
-                            <td><input type="url" name="popup_tracking_settings[floating_link_url]" value="<?php echo esc_url($settings['floating_link_url']); ?>" class="regular-text" placeholder="https://lin.ee/xxxxxx"></td>
                         </tr>
                         <tr>
                             <th>表示位置</th>
                             <td>
-                                <label><input type="radio" name="popup_tracking_settings[floating_position]" value="br" <?php checked($settings['floating_position'], 'br'); ?>> 右下</label>
-                                　<label><input type="radio" name="popup_tracking_settings[floating_position]" value="bl" <?php checked($settings['floating_position'], 'bl'); ?>> 左下</label>
+                                <label><input type="radio" name="popup_tracking_settings[floating_position]" value="br" <?php checked($settings['floating_position'] ?? 'br', 'br'); ?>> 右下</label>
+                                　<label><input type="radio" name="popup_tracking_settings[floating_position]" value="bl" <?php checked($settings['floating_position'] ?? 'br', 'bl'); ?>> 左下</label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>A/Bテスト</th>
+                            <td>
+                                <label class="switch">
+                                    <input type="checkbox" name="popup_tracking_settings[floating_abtest_enabled]" id="floating_popup_abtest_enabled" value="1" <?php checked($settings['floating_abtest_enabled'] ?? false); ?>>
+                                    <span class="slider"></span>
+                                </label> A/Bテストを有効にする
+                            </td>
+                        </tr>
+                        <tr id="floating-popup-active-variants-row" style="<?php echo !empty($settings['floating_abtest_enabled']) ? '' : 'display:none;'; ?>">
+                            <th>テストパターン数</th>
+                            <td>
+                                <select name="popup_tracking_settings[floating_active_variants]" id="floating_popup_active_variants">
+                                    <?php for ($i = 2; $i <= 10; $i++) : ?>
+                                        <option value="<?php echo $i; ?>" <?php selected($settings['floating_active_variants'] ?? 2, $i); ?>><?php echo $i; ?>パターン</option>
+                                    <?php endfor; ?>
+                                </select>
                             </td>
                         </tr>
                     </table>
+                    
+                    <!-- バリアント設定 -->
+                    <?php 
+                    $floating_abtest_enabled = !empty($settings['floating_abtest_enabled']);
+                    $floating_active_count = intval($settings['floating_active_variants'] ?? 2);
+                    foreach ($this->variants as $i => $v) : 
+                        $key = strtolower($v);
+                        $is_active = $i < $floating_active_count;
+                        $show_variant = (!$floating_abtest_enabled && $v === 'A') || ($floating_abtest_enabled && $is_active);
+                    ?>
+                    <div class="variant-section floating-popup-variant-section" id="floating-popup-variant-<?php echo $key; ?>" style="<?php echo $show_variant ? '' : 'display:none;'; ?> margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px; border-left: 4px solid <?php echo $v === 'A' ? '#0073aa' : '#00a32a'; ?>;">
+                        <h3 style="margin-top: 0;">
+                            <?php if ($floating_abtest_enabled) : ?>
+                                バリアント <?php echo $v; ?>
+                            <?php else : ?>
+                                バナー設定
+                            <?php endif; ?>
+                        </h3>
+                        <table class="form-table" style="margin: 0;">
+                            <tr>
+                                <th>画像</th>
+                                <td>
+                                    <div class="image-upload-field">
+                                        <input type="hidden" name="popup_tracking_settings[floating_image_url_<?php echo $key; ?>]" id="floating_popup_image_url_<?php echo $key; ?>" value="<?php echo esc_url($settings['floating_image_url_' . $key] ?? ''); ?>">
+                                        <div id="floating-popup-image-preview-<?php echo $key; ?>" class="image-preview-large">
+                                            <?php if (!empty($settings['floating_image_url_' . $key])) : ?>
+                                                <img src="<?php echo esc_url($settings['floating_image_url_' . $key]); ?>" alt="">
+                                            <?php else : ?>
+                                                <span class="placeholder">画像を選択</span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="image-buttons">
+                                            <button type="button" class="button upload-floating-popup-image-btn" data-variant="<?php echo $key; ?>">選択</button>
+                                            <button type="button" class="button remove-floating-popup-image-btn" data-variant="<?php echo $key; ?>" style="<?php echo !empty($settings['floating_image_url_' . $key]) ? '' : 'display:none;'; ?>">削除</button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>リンク先URL</th>
+                                <td><input type="url" name="popup_tracking_settings[floating_link_url_<?php echo $key; ?>]" value="<?php echo esc_url($settings['floating_link_url_' . $key] ?? ''); ?>" class="regular-text" placeholder="https://lin.ee/xxxxxx"></td>
+                            </tr>
+                            <?php if ($floating_abtest_enabled) : ?>
+                            <tr>
+                                <th>配信比率</th>
+                                <td>
+                                    <input type="number" name="popup_tracking_settings[floating_weight_<?php echo $key; ?>]" value="<?php echo intval($settings['floating_weight_' . $key] ?? ($v === 'A' ? 100 : 0)); ?>" min="0" max="100" style="width: 80px;"> %
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                        </table>
+                    </div>
+                    <?php endforeach; ?>
                 </div>
                 
                 <?php submit_button('設定を保存'); ?>

@@ -16,8 +16,8 @@
         variant: config.variant || 'A'
     };
     var floatingMeta = {
-        ctaId: config.floatingCtaId || 'floating',
-        variant: 'A'
+        ctaId: config.floatingCtaId || 'floating_popup',
+        variant: config.floatingVariant || 'A'
     };
     
     function log(msg) {

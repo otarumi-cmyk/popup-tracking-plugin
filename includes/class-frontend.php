@@ -32,6 +32,14 @@ class Popup_Tracking_Frontend {
         $settings = get_option('popup_tracking_settings', array());
         $floating_banner_settings = get_option('floating_banner_settings', array());
         
+        // フローティングポップアップ（右下）のCTAを取得
+        $floating_popup_cta = $show_floating ? $this->get_floating_popup_cta() : array(
+            'cta_id' => 'floating_popup',
+            'variant' => 'A',
+            'image_url' => '',
+            'link_url' => '',
+        );
+        
         // CTAを決定（タグ別 or デフォルト）
         $cta_data = $show_popup ? $this->get_cta_for_post(get_the_ID()) : array(
             'cta_id' => 'default',
@@ -80,10 +88,11 @@ class Popup_Tracking_Frontend {
             'frequency' => $settings['frequency'] ?? 'daily',
             'popupEnabled' => $show_popup ? 1 : 0,
             'floatingEnabled' => $show_floating ? 1 : 0,
-            'floatingImageUrl' => $settings['floating_image_url'] ?? '',
-            'floatingLinkUrl' => $settings['floating_link_url'] ?? '',
+            'floatingImageUrl' => $floating_popup_cta['image_url'] ?? '',
+            'floatingLinkUrl' => $floating_popup_cta['link_url'] ?? '',
             'floatingPosition' => $settings['floating_position'] ?? 'br',
-            'floatingCtaId' => 'floating',
+            'floatingCtaId' => $floating_popup_cta['cta_id'] ?? 'floating_popup',
+            'floatingVariant' => $floating_popup_cta['variant'] ?? 'A',
             'floatingBannerEnabled' => $show_floating_banner ? 1 : 0,
             'floatingBannerCtaId' => $floating_banner_cta['cta_id'],
             'floatingBannerVariant' => $floating_banner_cta['variant'],
@@ -331,7 +340,10 @@ class Popup_Tracking_Frontend {
         if (!is_single()) return false;
         $settings = get_option('popup_tracking_settings', array());
         if (empty($settings['floating_enabled'])) return false;
-        if (empty($settings['floating_image_url'])) return false;
+        
+        // 画像があるかチェック（A/Bテスト対応）
+        $floating_cta = $this->get_floating_popup_cta();
+        if (empty($floating_cta['image_url'])) return false;
         
         // フローティングポップアップ専用のカテゴリーチェック
         $floating_category_mode = $settings['floating_category_mode'] ?? 'all';
@@ -350,6 +362,77 @@ class Popup_Tracking_Frontend {
         if (!$this->passes_targeting(get_the_ID())) return false;
         
         return true;
+    }
+    
+    /**
+     * フローティングポップアップ（右下）のCTA情報を取得（A/Bテスト対応）
+     */
+    private $floating_popup_cta = null;
+    
+    public function get_floating_popup_cta() {
+        if ($this->floating_popup_cta !== null) {
+            return $this->floating_popup_cta;
+        }
+        
+        $settings = get_option('popup_tracking_settings', array());
+        $abtest_enabled = !empty($settings['floating_abtest_enabled']);
+        $active_count = intval($settings['floating_active_variants'] ?? 2);
+        
+        if (!$abtest_enabled) {
+            // A/Bテスト無効時はバリアントAを使用
+            $this->floating_popup_cta = array(
+                'cta_id' => 'floating_popup',
+                'variant' => 'A',
+                'image_url' => $settings['floating_image_url_a'] ?? $settings['floating_image_url'] ?? '',
+                'link_url' => $settings['floating_link_url_a'] ?? $settings['floating_link_url'] ?? '',
+            );
+            return $this->floating_popup_cta;
+        }
+        
+        // 重み付きランダム選択
+        $weights = array();
+        $total_weight = 0;
+        
+        for ($i = 0; $i < $active_count; $i++) {
+            $v = $this->variants[$i];
+            $key = strtolower($v);
+            $weight = intval($settings['floating_weight_' . $key] ?? 0);
+            if ($weight > 0) {
+                $weights[$v] = $weight;
+                $total_weight += $weight;
+            }
+        }
+        
+        if ($total_weight === 0) {
+            // 重みが全て0の場合は均等配分
+            for ($i = 0; $i < $active_count; $i++) {
+                $v = $this->variants[$i];
+                $weights[$v] = 1;
+                $total_weight++;
+            }
+        }
+        
+        $rand = mt_rand(1, $total_weight);
+        $cumulative = 0;
+        $selected_variant = 'A';
+        
+        foreach ($weights as $v => $w) {
+            $cumulative += $w;
+            if ($rand <= $cumulative) {
+                $selected_variant = $v;
+                break;
+            }
+        }
+        
+        $key = strtolower($selected_variant);
+        $this->floating_popup_cta = array(
+            'cta_id' => 'floating_popup',
+            'variant' => $selected_variant,
+            'image_url' => $settings['floating_image_url_' . $key] ?? '',
+            'link_url' => $settings['floating_link_url_' . $key] ?? '',
+        );
+        
+        return $this->floating_popup_cta;
     }
     
     public function should_show_floating_banner() {
@@ -512,8 +595,9 @@ class Popup_Tracking_Frontend {
 
         if ($show_floating) {
             $settings = get_option('popup_tracking_settings', array());
-            $f_image = $settings['floating_image_url'] ?? '';
-            $f_link = $settings['floating_link_url'] ?? '';
+            $floating_popup_cta = $this->get_floating_popup_cta();
+            $f_image = $floating_popup_cta['image_url'] ?? '';
+            $f_link = $floating_popup_cta['link_url'] ?? '';
             $position = $settings['floating_position'] ?? 'br';
             ?>
             <div id="popup-floating-banner" class="popup-floating-banner position-<?php echo esc_attr($position); ?>" style="display:none;">

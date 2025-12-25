@@ -144,6 +144,66 @@
         $('#floating-category-selection').toggle(mode !== 'all');
     });
     
+    // フローティングポップアップA/Bテスト設定
+    $('#floating_popup_abtest_enabled').on('change', function() {
+        var enabled = $(this).is(':checked');
+        $('#floating-popup-active-variants-row').toggle(enabled);
+        updateFloatingPopupVariants(enabled, $('#floating_popup_active_variants').val());
+    });
+    
+    $('#floating_popup_active_variants').on('change', function() {
+        var enabled = $('#floating_popup_abtest_enabled').is(':checked');
+        updateFloatingPopupVariants(enabled, $(this).val());
+    });
+    
+    function updateFloatingPopupVariants(abtestEnabled, count) {
+        count = parseInt(count) || 2;
+        var variants = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+        variants.forEach(function(v, index) {
+            var $section = $('#floating-popup-variant-' + v);
+            if (!abtestEnabled) {
+                $section.toggle(index === 0);
+            } else {
+                $section.toggle(index < count);
+            }
+        });
+    }
+    
+    // フローティングポップアップ画像アップローダー
+    $(document).on('click', '.upload-floating-popup-image-btn', function(e) {
+        e.preventDefault();
+        var variant = $(this).data('variant');
+        
+        if (typeof wp === 'undefined' || typeof wp.media === 'undefined') {
+            alert('メディアライブラリを読み込み中です。ページを更新してから再度お試しください。');
+            return;
+        }
+        
+        var frame = wp.media({
+            title: '画像を選択',
+            button: { text: '選択' },
+            multiple: false,
+            library: { type: 'image' }
+        });
+        
+        frame.on('select', function() {
+            var attachment = frame.state().get('selection').first().toJSON();
+            $('#floating_popup_image_url_' + variant).val(attachment.url);
+            $('#floating-popup-image-preview-' + variant).html('<img src="' + attachment.url + '" alt="">');
+            $('.remove-floating-popup-image-btn[data-variant="' + variant + '"]').show();
+        });
+        
+        frame.open();
+    });
+    
+    $(document).on('click', '.remove-floating-popup-image-btn', function(e) {
+        e.preventDefault();
+        var variant = $(this).data('variant');
+        $('#floating_popup_image_url_' + variant).val('');
+        $('#floating-popup-image-preview-' + variant).html('<span class="placeholder">画像を選択</span>');
+        $(this).hide();
+    });
+    
     // フローティングバナー記事検索
     setupPostSearch('floating-search-target-posts', 'floating-search-target-results', 'floating-selected-target-posts', 'floating-target-posts-input');
     setupPostSearch('floating-search-exclude-posts', 'floating-search-exclude-results', 'floating-selected-exclude-posts', 'floating-exclude-posts-input');
