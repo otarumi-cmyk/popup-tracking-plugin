@@ -210,6 +210,12 @@
         $('#category-selection').toggle(mode !== 'all');
     });
     
+    // フローティングポップアップ専用のカテゴリーフィルター
+    $('.floating-category-mode-radio').on('change', function() {
+        var mode = $(this).val();
+        $('#floating-category-selection').toggle(mode !== 'all');
+    });
+    
     // 記事検索
     var searchTimeout;
     

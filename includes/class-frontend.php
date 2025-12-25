@@ -332,7 +332,23 @@ class Popup_Tracking_Frontend {
         $settings = get_option('popup_tracking_settings', array());
         if (empty($settings['floating_enabled'])) return false;
         if (empty($settings['floating_image_url'])) return false;
+        
+        // フローティングポップアップ専用のカテゴリーチェック
+        $floating_category_mode = $settings['floating_category_mode'] ?? 'all';
+        $floating_target_categories = $settings['floating_target_categories'] ?? array();
+        
+        if ($floating_category_mode !== 'all' && !empty($floating_target_categories)) {
+            $post_id = get_the_ID();
+            $post_cats = wp_get_post_categories($post_id);
+            $has_category = !empty(array_intersect($post_cats, $floating_target_categories));
+            
+            if ($floating_category_mode === 'include' && !$has_category) return false;
+            if ($floating_category_mode === 'exclude' && $has_category) return false;
+        }
+        
+        // 通常のターゲティングチェック（記事レベル）
         if (!$this->passes_targeting(get_the_ID())) return false;
+        
         return true;
     }
     

@@ -130,6 +130,14 @@ class Popup_Tracking_Admin {
         $sanitized['floating_link_url'] = esc_url_raw($input['floating_link_url'] ?? '');
         $sanitized['floating_position'] = in_array($input['floating_position'] ?? '', array('br', 'bl')) 
             ? $input['floating_position'] : 'br';
+        
+        // フローティングポップアップ専用のカテゴリー設定
+        $sanitized['floating_category_mode'] = in_array($input['floating_category_mode'] ?? '', array('all', 'include', 'exclude')) 
+            ? $input['floating_category_mode'] : 'all';
+        $sanitized['floating_target_categories'] = array();
+        if (!empty($input['floating_target_categories']) && is_array($input['floating_target_categories'])) {
+            $sanitized['floating_target_categories'] = array_map('absint', $input['floating_target_categories']);
+        }
 
         $sanitized['is_active'] = !empty($input['is_active']);
         
@@ -982,6 +990,7 @@ class Popup_Tracking_Admin {
         $targeting = get_option('popup_tracking_targeting', array());
         $defaults = array('target_mode' => 'all', 'category_mode' => 'all', 'target_categories' => array(), 'target_posts' => array(), 'exclude_posts' => array());
         $targeting = wp_parse_args($targeting, $defaults);
+        $settings = get_option('popup_tracking_settings', array());
         $categories = get_categories(array('hide_empty' => false));
         
         $target_posts_data = array();
@@ -1000,7 +1009,10 @@ class Popup_Tracking_Admin {
             <h1>🎯 表示条件設定</h1>
             
             <form method="post" action="options.php">
-                <?php settings_fields('popup_tracking_targeting_group'); ?>
+                <?php 
+                settings_fields('popup_tracking_targeting_group'); 
+                settings_fields('popup_tracking_settings_group');
+                ?>
                 
                 <div class="targeting-section">
                     <h2>📝 記事の表示設定</h2>
