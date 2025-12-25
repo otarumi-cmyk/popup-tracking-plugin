@@ -166,9 +166,11 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
-@media (max-width: 540px) {
-    .popup-floating-banner { max-width: 240px; bottom: 12px; right: 12px; }
-    .popup-floating-banner.position-bl { left: 12px; }
+/* PCのみ表示（モバイルでは非表示） */
+@media (max-width: 768px) {
+    .popup-floating-banner { 
+        display: none !important; 
+    }
 }
 
 /* フローティングバナー（下側横長） */

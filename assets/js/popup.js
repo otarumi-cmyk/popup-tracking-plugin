@@ -229,13 +229,28 @@
     // フローティングバナー
     // ============================================
     function showFloating() {
-        if (floatingShown) return;
-        floatingShown = true;
+        if (floatingShown) {
+            log('Floating banner already shown');
+            return;
+        }
+        
         var banner = document.getElementById('popup-floating-banner');
-        if (!banner) { log('Floating banner not found'); return; }
+        if (!banner) { 
+            log('Floating banner not found'); 
+            return; 
+        }
+        
+        // PCのみ表示（再確認）
+        var isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            log('Floating banner: Mobile device detected, not showing');
+            return;
+        }
+        
+        floatingShown = true;
         banner.style.display = 'block';
-        markAsShown('floating');
-        log('Floating banner displayed');
+        log('Floating banner displayed (PC only, always shown)');
+        // 頻度制限なしなのでmarkAsShownは呼ばない
         sendLog('impression', floatingMeta, floatingLogged);
     }
     
@@ -296,9 +311,17 @@
     function initFloating() {
         if (!floatingEnabled) return;
         if (!config.floatingImageUrl) { log('No floating image configured'); return; }
-        if (hasShownBefore('floating')) { log('Floating already shown (frequency: ' + config.frequency + ')'); return; }
+        
+        // PCのみ表示（モバイルでは表示しない）
+        var isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            log('Floating banner: Mobile device detected, not showing');
+            return;
+        }
+        
+        // 頻度制限なし - 常に表示
         setupFloatingListeners();
-        setTimeout(showFloating, 800);
+        showFloating();
     }
     
     // ============================================
